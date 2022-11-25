@@ -286,6 +286,19 @@ spec:
           - PARAMETERS
           - STAGES
           - STEPS
+      - name: scanMode
+        description:
+          test
+        aliases:
+          - name: detect/scanMode
+        type: string
+        possibleValues:
+          - EPHEMERAL
+          - RAPID
+        scope:
+          - PARAMETERS
+          - STAGES
+          - STEPS
       - name: scanOnChanges
         description:
           "This flag determines if the scan is submitted to the server. If set to true, then the scan request is submitted to the server only when changes are detected in the Open Source Bill of Materials

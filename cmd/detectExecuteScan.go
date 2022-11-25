@@ -17,6 +17,7 @@ import (
 	piperGithub "github.com/SAP/jenkins-library/pkg/github"
 	piperhttp "github.com/SAP/jenkins-library/pkg/http"
 	"github.com/SAP/jenkins-library/pkg/maven"
+	"github.com/SAP/jenkins-library/pkg/orchestrator"
 	"github.com/SAP/jenkins-library/pkg/reporting"
 	"github.com/SAP/jenkins-library/pkg/versioning"
 	"github.com/pkg/errors"
@@ -291,6 +292,13 @@ func getDetectScript(config detectExecuteScanOptions, utils detectUtils) error {
 			return utils.DownloadFile("https://detect.synopsys.com/detect.sh", "detect.sh", nil, nil)
 		}
 	}
+
+	// ephemeral scan requires detect script version 8
+	if config.ScanMode == "EPHEMERAL" {
+		log.Entry().Infof("Downloading Detect8")
+		return utils.DownloadFile("https://detect.synopsys.com/detect8.sh", "detect.sh", nil, nil)
+	}
+
 	log.Entry().Infof("Downloading Detect7")
 	return utils.DownloadFile("https://detect.synopsys.com/detect7.sh", "detect.sh", nil, nil)
 }
@@ -389,6 +397,33 @@ func addDetectArgs(args []string, config detectExecuteScanOptions, utils detectU
 	if len(mavenArgs) > 0 {
 		args = append(args, fmt.Sprintf("\"--detect.maven.build.command='%v'\"", strings.Join(mavenArgs, " ")))
 	}
+
+	log.Entry().Debug("checking pull request or not")
+
+	provider, err := orchestrator.NewOrchestratorSpecificConfigProvider()
+	if err != nil {
+		log.Entry().WithError(err).Warning("Cannot infer config from CI environment")
+		return args, nil
+	}
+
+	if provider.IsPullRequest() {
+		log.Entry().Debug("pull request detected")
+
+		if config.ScanMode == "RAPID" {
+			log.Entry().Debug("running rapid")
+
+			args = append(args, "--detect.blackduck.scan.mode='RAPID'")
+			args = append(args, "--detect.blackduck.rapid.compare.mode='BOM_COMPARE_STRICT'")
+		} else {
+			log.Entry().Debug("running ephemeral")
+
+			args = append(args, "--detect.blackduck.scan.mode='EPHEMERAL'")
+		}
+
+		args = append(args, "--detect.cleanup=false")
+	}
+
+	log.Entry().Debug("it not pull request")
 
 	return args, nil
 }
@@ -754,10 +789,7 @@ func createToolRecordDetect(utils detectUtils, workspace string, config detectEx
 	if projectId == "" {
 		return "", fmt.Errorf("TR_DETECT: no project id in %v", projectURL)
 	}
-	err = record.AddKeyData("project",
-		projectId,
-		config.ProjectName,
-		projectURL)
+	err = record.AddKeyData("project", projectId, config.ProjectName, projectURL)
 	if err != nil {
 		return "", err
 	}
