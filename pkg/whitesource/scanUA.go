@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/SAP/jenkins-library/pkg/maven"
 	"io"
 	"os"
 	"path/filepath"
@@ -72,6 +73,20 @@ func (s *Scan) ExecuteUAScan(config *ScanOptions, utils Utils) error {
 
 // ExecuteUAScanInPath executes a scan with the Whitesource Unified Agent in a dedicated scanPath.
 func (s *Scan) ExecuteUAScanInPath(config *ScanOptions, utils Utils, scanPath string) error {
+
+	if config.InstallArtifacts {
+		log.Entry().Info("Install maven artifact again")
+		err := maven.InstallMavenArtifacts(&maven.EvaluateOptions{
+			M2Path:              config.M2Path,
+			ProjectSettingsFile: config.ProjectSettingsFile,
+			GlobalSettingsFile:  config.GlobalSettingsFile,
+			PomPath:             "pom.xml",
+		}, utils)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Download the unified agent jar file if one does not exist
 	err := downloadAgent(config, utils)
 	if err != nil {
